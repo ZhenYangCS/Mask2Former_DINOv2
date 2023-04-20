@@ -961,8 +961,8 @@ def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
     
 
 def build_base_fpn_dinov2():
-    net = vit_base()
-    # net = vit_small()
+    # net = vit_base()
+    net = vit_small()
     backbone = SimpleFeaturePyramid(
         net=net,
         in_feature='last_feat',
