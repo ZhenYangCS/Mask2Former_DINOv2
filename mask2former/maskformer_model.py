@@ -15,6 +15,8 @@ from detectron2.utils.memory import retry_if_cuda_oom
 
 from .modeling.criterion import SetCriterion
 from .modeling.matcher import HungarianMatcher
+from .modeling.backbone.dinov2 import build_base_fpn_dinov2, get_vit_lr_decay_rate
+
 
 
 @META_ARCH_REGISTRY.register()
@@ -70,6 +72,10 @@ class MaskFormer(nn.Module):
         """
         super().__init__()
         self.backbone = backbone
+        # TODO
+        # self.backbone = build_base_fpn_dinov2()
+
+
         self.sem_seg_head = sem_seg_head
         self.criterion = criterion
         self.num_queries = num_queries
@@ -96,6 +102,7 @@ class MaskFormer(nn.Module):
     @classmethod
     def from_config(cls, cfg):
         backbone = build_backbone(cfg)
+
         sem_seg_head = build_sem_seg_head(cfg, backbone.output_shape())
 
         # Loss parameters:
@@ -195,6 +202,19 @@ class MaskFormer(nn.Module):
         images = ImageList.from_tensors(images, self.size_divisibility)
 
         features = self.backbone(images.tensor)
+
+        # Dinov2
+        # torch.Size([1, 768, 256, 256])
+        # torch.Size([1, 768, 128, 128])
+        # torch.Size([1, 768, 64, 64])
+        # torch.Size([1, 768, 32, 32])
+
+        # swin
+        # torch.Size([1, 128, 256, 256])
+        # torch.Size([1, 256, 128, 128])
+        # torch.Size([1, 512, 64, 64])
+        # torch.Size([1, 1024, 32, 32])
+
         outputs = self.sem_seg_head(features)
 
         if self.training:
