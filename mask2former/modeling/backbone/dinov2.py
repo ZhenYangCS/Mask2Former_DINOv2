@@ -23,6 +23,8 @@ from typing import Callable, Optional
 from detectron2.modeling import BACKBONE_REGISTRY, Backbone, ShapeSpec
 from detectron2.layers import CNNBlockBase, Conv2d, get_norm
 from detectron2.modeling.backbone.fpn import _assert_strides_are_log2_contiguous
+import torch.utils.checkpoint as cp
+
 
 
 
@@ -549,8 +551,11 @@ class DinoVisionTransformer(Backbone):
         if isinstance(x, list):
             return self.forward_features_list(x, masks)
         x = self.prepare_tokens_with_masks(x, masks)
+
+
         for blk in self.blocks:
-            x = blk(x)
+            x = cp.checkpoint(blk, x)
+            # x = blk(x)
 
         x_norm = self.norm(x)
 
