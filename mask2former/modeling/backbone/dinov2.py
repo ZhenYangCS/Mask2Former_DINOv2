@@ -378,7 +378,7 @@ class DinoVisionTransformer(Backbone):
         proj_bias=True,
         drop_path_rate=0.0,
         drop_path_uniform=False,
-        init_values=None,  # for layerscale: None or 0 => no layerscale
+        init_values=1e-5,  # for layerscale: None or 0 => no layerscale
         embed_layer=PatchEmbed,
         act_layer=nn.GELU,
         block_fn=Block,
@@ -657,91 +657,91 @@ def vit_small(patch_size=16, **kwargs):
     )
     return model
 
-@BACKBONE_REGISTRY.register()
-class D2ViT(DinoVisionTransformer, Backbone):
-    def __init__(self, cfg, input_shape):
+# @BACKBONE_REGISTRY.register()
+# class D2ViT(DinoVisionTransformer, Backbone):
+#     def __init__(self, cfg, input_shape):
 
-        pretrain_img_size = cfg.MODEL.SWIN.PRETRAIN_IMG_SIZE
-        patch_size = cfg.MODEL.SWIN.PATCH_SIZE
-        in_chans = 3
-        embed_dim = cfg.MODEL.SWIN.EMBED_DIM
-        depths = cfg.MODEL.SWIN.DEPTHS
-        num_heads = cfg.MODEL.SWIN.NUM_HEADS
-        window_size = cfg.MODEL.SWIN.WINDOW_SIZE
-        mlp_ratio = cfg.MODEL.SWIN.MLP_RATIO
-        qkv_bias = cfg.MODEL.SWIN.QKV_BIAS
-        qk_scale = cfg.MODEL.SWIN.QK_SCALE
-        drop_rate = cfg.MODEL.SWIN.DROP_RATE
-        attn_drop_rate = cfg.MODEL.SWIN.ATTN_DROP_RATE
-        drop_path_rate = cfg.MODEL.SWIN.DROP_PATH_RATE
-        norm_layer = nn.LayerNorm
-        ape = cfg.MODEL.SWIN.APE
-        patch_norm = cfg.MODEL.SWIN.PATCH_NORM
-        use_checkpoint = cfg.MODEL.SWIN.USE_CHECKPOINT
+#         pretrain_img_size = cfg.MODEL.SWIN.PRETRAIN_IMG_SIZE
+#         patch_size = cfg.MODEL.SWIN.PATCH_SIZE
+#         in_chans = 3
+#         embed_dim = cfg.MODEL.SWIN.EMBED_DIM
+#         depths = cfg.MODEL.SWIN.DEPTHS
+#         num_heads = cfg.MODEL.SWIN.NUM_HEADS
+#         window_size = cfg.MODEL.SWIN.WINDOW_SIZE
+#         mlp_ratio = cfg.MODEL.SWIN.MLP_RATIO
+#         qkv_bias = cfg.MODEL.SWIN.QKV_BIAS
+#         qk_scale = cfg.MODEL.SWIN.QK_SCALE
+#         drop_rate = cfg.MODEL.SWIN.DROP_RATE
+#         attn_drop_rate = cfg.MODEL.SWIN.ATTN_DROP_RATE
+#         drop_path_rate = cfg.MODEL.SWIN.DROP_PATH_RATE
+#         norm_layer = nn.LayerNorm
+#         ape = cfg.MODEL.SWIN.APE
+#         patch_norm = cfg.MODEL.SWIN.PATCH_NORM
+#         use_checkpoint = cfg.MODEL.SWIN.USE_CHECKPOINT
 
-        super().__init__(
-            pretrain_img_size,
-            patch_size,
-            in_chans,
-            embed_dim,
-            depths,
-            num_heads,
-            window_size,
-            mlp_ratio,
-            qkv_bias,
-            qk_scale,
-            drop_rate,
-            attn_drop_rate,
-            drop_path_rate,
-            norm_layer,
-            ape,
-            patch_norm,
-            use_checkpoint=use_checkpoint,
-        )
+#         super().__init__(
+#             pretrain_img_size,
+#             patch_size,
+#             in_chans,
+#             embed_dim,
+#             depths,
+#             num_heads,
+#             window_size,
+#             mlp_ratio,
+#             qkv_bias,
+#             qk_scale,
+#             drop_rate,
+#             attn_drop_rate,
+#             drop_path_rate,
+#             norm_layer,
+#             ape,
+#             patch_norm,
+#             use_checkpoint=use_checkpoint,
+#         )
 
-        self._out_features = cfg.MODEL.SWIN.OUT_FEATURES
+#         self._out_features = cfg.MODEL.SWIN.OUT_FEATURES
 
-        self._out_feature_strides = {
-            "res2": 4,
-            "res3": 8,
-            "res4": 16,
-            "res5": 32,
-        }
-        self._out_feature_channels = {
-            "res2": self.num_features[0],
-            "res3": self.num_features[1],
-            "res4": self.num_features[2],
-            "res5": self.num_features[3],
-        }
+#         self._out_feature_strides = {
+#             "res2": 4,
+#             "res3": 8,
+#             "res4": 16,
+#             "res5": 32,
+#         }
+#         self._out_feature_channels = {
+#             "res2": self.num_features[0],
+#             "res3": self.num_features[1],
+#             "res4": self.num_features[2],
+#             "res5": self.num_features[3],
+#         }
 
-    def forward(self, x):
-        """
-        Args:
-            x: Tensor of shape (N,C,H,W). H, W must be a multiple of ``self.size_divisibility``.
-        Returns:
-            dict[str->Tensor]: names and the corresponding features
-        """
-        assert (
-            x.dim() == 4
-        ), f"SwinTransformer takes an input of shape (N, C, H, W). Got {x.shape} instead!"
-        outputs = {}
-        y = super().forward(x)
-        for k in y.keys():
-            if k in self._out_features:
-                outputs[k] = y[k]
-        return outputs
+#     def forward(self, x):
+#         """
+#         Args:
+#             x: Tensor of shape (N,C,H,W). H, W must be a multiple of ``self.size_divisibility``.
+#         Returns:
+#             dict[str->Tensor]: names and the corresponding features
+#         """
+#         assert (
+#             x.dim() == 4
+#         ), f"SwinTransformer takes an input of shape (N, C, H, W). Got {x.shape} instead!"
+#         outputs = {}
+#         y = super().forward(x)
+#         for k in y.keys():
+#             if k in self._out_features:
+#                 outputs[k] = y[k]
+#         return outputs
 
-    def output_shape(self):
-        return {
-            name: ShapeSpec(
-                channels=self._out_feature_channels[name], stride=self._out_feature_strides[name]
-            )
-            for name in self._out_features
-        }
+#     def output_shape(self):
+#         return {
+#             name: ShapeSpec(
+#                 channels=self._out_feature_channels[name], stride=self._out_feature_strides[name]
+#             )
+#             for name in self._out_features
+#         }
 
-    @property
-    def size_divisibility(self):
-        return 32
+#     @property
+#     def size_divisibility(self):
+#         return 32
 
 
         # self._out_feature_channels = {out_feature: embed_dim}
@@ -800,7 +800,7 @@ class SimpleFeaturePyramid(Backbone):
 
     def __init__(
         self,
-        net,
+        ViT,
         in_feature,
         out_channels,
         scale_factors,
@@ -828,11 +828,11 @@ class SimpleFeaturePyramid(Backbone):
             square_pad (int): If > 0, require input images to be padded to specific square size.
         """
         super(SimpleFeaturePyramid, self).__init__()
-        assert isinstance(net, Backbone)
+        assert isinstance(ViT, Backbone)
 
         self.scale_factors = scale_factors
 
-        input_shapes = net.output_shape()
+        input_shapes = ViT.output_shape()
         strides = [int(input_shapes[in_feature].stride / scale) for scale in scale_factors]
         _assert_strides_are_log2_contiguous(strides)
 
@@ -889,7 +889,7 @@ class SimpleFeaturePyramid(Backbone):
             self.add_module(f"simfp_{stage}", layers)
             self.stages.append(layers)
 
-        self.net = net
+        self.ViT = ViT
         self.in_feature = in_feature
         self.top_block = top_block
         # Return feature names are "p<stage>", like ["p2", "p3", ..., "p6"]
@@ -922,7 +922,7 @@ class SimpleFeaturePyramid(Backbone):
                 convention: "p<stage>", where stage has stride = 2 ** stage e.g.,
                 ["p2", "p3", ..., "p6"].
         """
-        bottom_up_features = self.net(x)
+        bottom_up_features = self.ViT(x)
         features = bottom_up_features[self.in_feature]
         b, s, e = features.shape
         features = features.reshape(b, int(math.sqrt(s)), int(math.sqrt(s)), e).permute(0, 3, 1, 2)
@@ -962,9 +962,9 @@ def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
 
 def build_base_fpn_dinov2():
     # net = vit_base()
-    net = vit_small()
+    ViT = vit_small()
     backbone = SimpleFeaturePyramid(
-        net=net,
+        ViT=ViT,
         in_feature='last_feat',
         out_channels=768,
         scale_factors=[4.0, 2.0, 1.0, 0.5],
@@ -982,7 +982,7 @@ def main():
     x = torch.randn(1, 3, 1024, 1024)
     out = backbone(x)
     print(out['res2'][0][0][0][0])
-    model = torch.load("/home/yangzhen/checkpoints/segmentation/dinov2_vits14_pretrain.pth")
+    model = torch.load("/home/yangzhen/checkpoints/segmentation/new_dinov2_vits14_pretrain.pth")
     backbone.load_state_dict(model) 
     out = backbone(x)
     # model = torch.hub.load(repo_or_dir="/home/yangzhen/.cache/torch/hub/facebookresearch_dinov2_main", model='dinov2_vits14', source='local')
