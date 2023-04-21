@@ -17,3 +17,5 @@ MODEL:
   # WEIGHTS: "/home/yangzhen/checkpoints/segmentation/model_final_f6e0f6.pkl"
   PIXEL_MEAN: [123.675, 116.280, 103.530]
   PIXEL_STD: [58.395, 57.120, 57.375]
+  # TODO
+  
