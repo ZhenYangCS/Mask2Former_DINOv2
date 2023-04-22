@@ -271,6 +271,65 @@ def drop_add_residual_stochastic_depth(
     return x_plus_residual.view_as(x)
 
 
+def window_partition(x, window_size, hw):
+    """
+    Partition into non-overlapping windows with padding if needed.
+    Args:
+        x (tensor): input tokens with [B, H, W, C].
+        window_size (int): window size.
+    Returns:
+        windows: windows after partition with [B * num_windows, window_size, window_size, C].
+        (Hp, Wp): padded height and width before partition
+    """
+    # B, H, W, C = x.shape
+    B, _, C = x.shape
+    H, W = hw
+    
+    x = x.reshape(B, H, W, C)
+
+    pad_h = (window_size - H % window_size) % window_size
+    pad_w = (window_size - W % window_size) % window_size
+    if pad_h > 0 or pad_w > 0:
+        x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
+    Hp, Wp = H + pad_h, W + pad_w
+
+    x = x.view(B, Hp // window_size, window_size, Wp // window_size, window_size, C)
+    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
+
+    B_temp, H_temp, W_temp, C_temp = windows.shape
+    windows = windows.reshape(B_temp, H_temp * W_temp, C_temp)
+    
+    return windows, (Hp, Wp), (H_temp, W_temp)
+
+
+def window_unpartition(windows, window_size, pad_hw, hw, temp_hw):
+    """
+    Window unpartition into original sequences and removing padding.
+    Args:
+        x (tensor): input tokens with [B * num_windows, window_size, window_size, C].
+        window_size (int): window size.
+        pad_hw (Tuple): padded height and width (Hp, Wp).
+        hw (Tuple): original height and width (H, W) before padding.
+    Returns:
+        x: unpartitioned sequences with [B, H, W, C].
+    """
+    Hp, Wp = pad_hw
+    H, W = hw
+    temp_h, temp_w = temp_hw
+    B_temp, _, C_temp = windows.shape
+    windows = windows.reshape(B_temp, temp_h, temp_w, C_temp)
+
+    B = windows.shape[0] // (Hp * Wp // window_size // window_size)
+    x = windows.view(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
+    x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, Hp, Wp, -1)
+
+    if Hp > H or Wp > W:
+        x = x[:, :H, :W, :].contiguous()
+    B_t, H_t, W_t, C_t = x.shape
+    x = x.reshape(B_t, H_t * W_t, C_t)
+    return x
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -284,6 +343,9 @@ class Block(nn.Module):
         attn_drop: float = 0.0,
         init_values=None,
         drop_path: float = 0.0,
+
+        window_size=16,
+
         act_layer: Callable[..., nn.Module] = nn.GELU,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         attn_class: Callable[..., nn.Module] = Attention,
@@ -317,9 +379,27 @@ class Block(nn.Module):
 
         self.sample_drop_ratio = drop_path
 
-    def forward(self, x: Tensor) -> Tensor:
+
+        # 加入window attention
+        self.window_size = window_size
+        
+
+    def forward(self, x: Tensor, H, W) -> Tensor:
         def attn_residual_func(x: Tensor) -> Tensor:
-            return self.ls1(self.attn(self.norm1(x)))
+            if self.window_size > 0:
+                # pass
+                x = self.norm1(x)
+
+                x, pad_hw, temp_hw = window_partition(x, self.window_size, (H, W))
+
+                x = self.attn(x)
+
+                x = window_unpartition(x, self.window_size, pad_hw, (H, W), temp_hw)
+
+                return self.ls1(x)
+
+            else:
+                return self.ls1(self.attn(self.norm1(x)))
 
         def ffn_residual_func(x: Tensor) -> Tensor:
             return self.ls2(self.mlp(self.norm2(x)))
@@ -359,9 +439,9 @@ def named_apply(fn: Callable, module: nn.Module, name="", depth_first=True, incl
 
 
 class BlockChunk(nn.ModuleList):
-    def forward(self, x):
+    def forward(self, x, H, W):
         for b in self:
-            x = b(x)
+            x = b(x, H, W)
         return x
 
 
@@ -387,6 +467,9 @@ class DinoVisionTransformer(Backbone):
         ffn_layer="mlp",
         block_chunks=1,
         out_feature="last_feat",
+
+        window_size=16,
+        window_block_indexes=[0, 1, 3, 4, 6, 7, 9, 10,],
     ):
         """
         Args:
@@ -422,7 +505,8 @@ class DinoVisionTransformer(Backbone):
         self.patch_embed = embed_layer(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         num_patches = self.patch_embed.num_patches
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        # self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim))
 
         if drop_path_uniform is True:
@@ -459,6 +543,8 @@ class DinoVisionTransformer(Backbone):
                 act_layer=act_layer,
                 ffn_layer=ffn_layer,
                 init_values=init_values,
+
+                window_size=window_size if i in window_block_indexes else 0,
             )
             for i in range(depth)
         ]
@@ -477,7 +563,7 @@ class DinoVisionTransformer(Backbone):
         self.norm = norm_layer(embed_dim)
         self.head = nn.Identity()
 
-        self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
+        # self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
 
         self.init_weights()
 
@@ -488,18 +574,20 @@ class DinoVisionTransformer(Backbone):
 
     def init_weights(self):
         trunc_normal_(self.pos_embed, std=0.02)
-        nn.init.normal_(self.cls_token, std=1e-6)
+        # nn.init.normal_(self.cls_token, std=1e-6)
         named_apply(init_weights_vit_timm, self)
 
     def interpolate_pos_encoding(self, x, w, h):
         previous_dtype = x.dtype
+        # npatch = x.shape[1]
+        # N = self.pos_embed.shape[1]
         npatch = x.shape[1] - 1
         N = self.pos_embed.shape[1] - 1
         if npatch == N and w == h:
-            return self.pos_embed
+            return self.pos_embed[:, 1:]
         pos_embed = self.pos_embed.float()
-        class_pos_embed = pos_embed[:, 0]
-        patch_pos_embed = pos_embed[:, 1:]
+        # class_pos_embed = pos_embed[:, 0]
+        patch_pos_embed = pos_embed[:, 1:]#[:, 1:]
         dim = x.shape[-1]
         w0 = w // self.patch_size
         h0 = h // self.patch_size
@@ -515,15 +603,17 @@ class DinoVisionTransformer(Backbone):
 
         assert int(w0) == patch_pos_embed.shape[-2] and int(h0) == patch_pos_embed.shape[-1]
         patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
-        return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1).to(previous_dtype)
+
+        return patch_pos_embed.to(previous_dtype)
+        # return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1).to(previous_dtype)
 
     def prepare_tokens_with_masks(self, x, masks=None):
         B, nc, w, h = x.shape
         x = self.patch_embed(x)
-        if masks is not None:
-            x = torch.where(masks.unsqueeze(-1), self.mask_token.to(x.dtype).unsqueeze(0), x)
+        # if masks is not None:
+        #     x = torch.where(masks.unsqueeze(-1), self.mask_token.to(x.dtype).unsqueeze(0), x)
 
-        x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
+        # x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
         x = x + self.interpolate_pos_encoding(x, w, h)
 
         return x
@@ -539,8 +629,9 @@ class DinoVisionTransformer(Backbone):
             x_norm = self.norm(x)
             output.append(
                 {
-                    "x_norm_clstoken": x_norm[:, 0],
-                    "x_norm_patchtokens": x_norm[:, 1:],
+                    # "x_norm_clstoken": x_norm[:, 0],
+                    # "x_norm_patchtokens": x_norm[:, 1:],
+                    "x_norm_patchtokens": x_norm,
                     "x_prenorm": x,
                     "masks": masks,
                 }
@@ -550,18 +641,21 @@ class DinoVisionTransformer(Backbone):
     def forward_features(self, x, masks=None):
         if isinstance(x, list):
             return self.forward_features_list(x, masks)
+        
+        H, W = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size
         x = self.prepare_tokens_with_masks(x, masks)
-
+        
 
         for blk in self.blocks:
-            x = cp.checkpoint(blk, x)
-            # x = blk(x)
+            x = cp.checkpoint(blk, x, H, W)
+            # x = blk(x, H, W)
 
         x_norm = self.norm(x)
 
         return {
-            "x_norm_clstoken": x_norm[:, 0],
-            "x_norm_patchtokens": x_norm[:, 1:],
+            # "x_norm_clstoken": x_norm[:, 0],
+            # "x_norm_patchtokens": x_norm[:, 1:],
+            "x_norm_patchtokens": x_norm,
             "x_prenorm": x,
             "masks": masks,
         }
@@ -797,6 +891,8 @@ class LayerNorm(nn.Module):
         return x
 
 
+
+@BACKBONE_REGISTRY.register()
 class SimpleFeaturePyramid(Backbone):
     """
     This module implements SimpleFeaturePyramid in :paper:`vitdet`.
@@ -855,17 +951,13 @@ class SimpleFeaturePyramid(Backbone):
                     nn.ConvTranspose2d(dim // 2, dim // 4, kernel_size=2, stride=2),
                 ]
                 out_dim = dim // 4
-                out_channels = 128
             elif scale == 2.0:
                 layers = [nn.ConvTranspose2d(dim, dim // 2, kernel_size=2, stride=2)]
                 out_dim = dim // 2
-                out_channels = 256
             elif scale == 1.0:
                 layers = []
-                out_channels = 512
             elif scale == 0.5:
                 layers = [nn.MaxPool2d(kernel_size=2, stride=2)]
-                out_channels = 1024
             else:
                 raise NotImplementedError(f"scale_factor={scale} is not supported yet.")
 # TODO out_channels's dim
@@ -928,7 +1020,6 @@ class SimpleFeaturePyramid(Backbone):
                 ["p2", "p3", ..., "p6"].
         """
         _, _, h, w = x.shape
-        # print(x.shape)
         bottom_up_features = self.ViT(x)
         features = bottom_up_features[self.in_feature]
         b, s, e = features.shape
@@ -969,12 +1060,12 @@ class SimpleFeaturePyramid(Backbone):
 
 
 def build_base_fpn_dinov2():
-    # net = vit_base()
-    ViT = vit_small()
+    ViT = vit_base()
+    # ViT = vit_small()
     backbone = SimpleFeaturePyramid(
         ViT=ViT,
         in_feature='last_feat',
-        out_channels=768,
+        out_channels=256,
         scale_factors=[4.0, 2.0, 1.0, 0.5],
     )
     return backbone
@@ -990,11 +1081,12 @@ def main():
     x = torch.randn(1, 3, 1024, 1024)
     out = backbone(x)
     print(out['res2'][0][0][0][0])
-    model = torch.load("/home/yangzhen/checkpoints/segmentation/new_dinov2_vits14_pretrain.pth")
-    backbone.load_state_dict(model) 
-    out = backbone(x)
+    # model = torch.load("/home/yangzhen/checkpoints/segmentation/new_dinov2_vits14_pretrain.pth")
+    # backbone.load_state_dict(model) 
+    # out = backbone(x)
     # model = torch.hub.load(repo_or_dir="/home/yangzhen/.cache/torch/hub/facebookresearch_dinov2_main", model='dinov2_vits14', source='local')
-    print(out['res2'][0][0][0][0])
+    # print(out['res2'][0][0][0][0])
+    
 
     
 

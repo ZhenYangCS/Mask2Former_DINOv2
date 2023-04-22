@@ -243,7 +243,6 @@ class Trainer(DefaultTrainer):
                     "relative_position_bias_table" in module_param_name
                     or "absolute_pos_embed" in module_param_name
                 ):
-                    print(module_param_name)
                     hyperparams["weight_decay"] = 0.0
                 if isinstance(module, norm_module_types):
                     hyperparams["weight_decay"] = weight_decay_norm
