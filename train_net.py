@@ -12,6 +12,7 @@ try:
 except:
     pass
 
+from functools import partial
 import copy
 import itertools
 import logging
@@ -58,6 +59,25 @@ from mask2former import (
     add_maskformer2_config,
 )
 
+def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
+    """
+    Calculate lr decay rate for different ViT blocks.
+    Args:
+        name (string): parameter name.
+        lr_decay_rate (float): base lr decay rate.
+        num_layers (int): number of ViT blocks.
+    Returns:
+        lr decay rate for the given parameter.
+    """
+    layer_id = num_layers + 1
+    if name.startswith("backbone"):
+        if ".pos_embed" in name or ".patch_embed" in name:
+            layer_id = 0
+        elif ".blocks." in name and ".residual." not in name:
+            # TODO，因为名字中有block.0.0，因此要选择第三个
+            layer_id = int(name[name.find(".blocks.") :].split(".")[3]) + 1
+
+    return lr_decay_rate ** (num_layers + 1 - layer_id)
 
 class Trainer(DefaultTrainer):
     """
@@ -216,8 +236,9 @@ class Trainer(DefaultTrainer):
 
                 hyperparams = copy.copy(defaults)
                 if "backbone" in module_name:
-                    hyperparams["lr"] = hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER
-                    #TODO
+                    # hyperparams["lr"] = hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER
+                    #TODO 如果更换模型，则需要修改num_layers的值以及lr_decay_rate的值
+                    hyperparams['lr'] = hyperparams['lr'] * get_vit_lr_decay_rate(module_name, lr_decay_rate=0.8, num_layers=12)
                 if (
                     "relative_position_bias_table" in module_param_name
                     or "absolute_pos_embed" in module_param_name
@@ -229,6 +250,9 @@ class Trainer(DefaultTrainer):
                 if isinstance(module, torch.nn.Embedding):
                     hyperparams["weight_decay"] = weight_decay_embed
                 params.append({"params": [value], **hyperparams})
+        # optimizer.params.lr_factor_func = partial(get_vit_lr_decay_rate, lr_decay_rate=0.8, num_layers=24)
+        # params['lr_factor_func'] = partial(get_vit_lr_decay_rate, lr_decay_rate=0.8, num_layers=12)
+
 
         def maybe_add_full_model_gradient_clipping(optim):
             # detectron2 doesn't have full model gradient clipping now
@@ -256,6 +280,8 @@ class Trainer(DefaultTrainer):
             optimizer = maybe_add_full_model_gradient_clipping(torch.optim.AdamW)(
                 params, cfg.SOLVER.BASE_LR
             )
+            # optimizer.params.lr_factor_func = partial(get_vit_lr_decay_rate, lr_decay_rate=0.8, num_layers=24)
+
         else:
             raise NotImplementedError(f"no optimizer type {optimizer_type}")
         if not cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE == "full_model":
@@ -317,6 +343,7 @@ def main(args):
 
 
 if __name__ == "__main__":
+    print('hello')
     args = default_argument_parser().parse_args()
     print("Command Line Args:", args)
     launch(

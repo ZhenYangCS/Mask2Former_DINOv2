@@ -15,7 +15,7 @@ from detectron2.utils.memory import retry_if_cuda_oom
 
 from .modeling.criterion import SetCriterion
 from .modeling.matcher import HungarianMatcher
-from .modeling.backbone.dinov2 import build_base_fpn_dinov2, get_vit_lr_decay_rate
+from .modeling.backbone.dinov2 import build_base_fpn_dinov2#, get_vit_lr_decay_rate
 
 
 

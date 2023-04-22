@@ -927,10 +927,13 @@ class SimpleFeaturePyramid(Backbone):
                 convention: "p<stage>", where stage has stride = 2 ** stage e.g.,
                 ["p2", "p3", ..., "p6"].
         """
+        _, _, h, w = x.shape
+        # print(x.shape)
         bottom_up_features = self.ViT(x)
         features = bottom_up_features[self.in_feature]
         b, s, e = features.shape
-        features = features.reshape(b, int(math.sqrt(s)), int(math.sqrt(s)), e).permute(0, 3, 1, 2)
+        # features = features.reshape(b, int(math.sqrt(s)), int(math.sqrt(s)), e).permute(0, 3, 1, 2)
+        features = features.reshape(b, h // 16, w // 16, e).permute(0, 3, 1, 2)
 
         results = []
         for stage in self.stages:
@@ -945,25 +948,25 @@ class SimpleFeaturePyramid(Backbone):
         assert len(self._out_features) == len(results)
         return {f: res for f, res in zip(self._out_features, results)}
 
-def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
-    """
-    Calculate lr decay rate for different ViT blocks.
-    Args:
-        name (string): parameter name.
-        lr_decay_rate (float): base lr decay rate.
-        num_layers (int): number of ViT blocks.
-    Returns:
-        lr decay rate for the given parameter.
-    """
-    layer_id = num_layers + 1
-    if name.startswith("backbone"):
-        if ".pos_embed" in name or ".patch_embed" in name:
-            layer_id = 0
-        elif ".blocks." in name and ".residual." not in name:
-            layer_id = int(name[name.find(".blocks.") :].split(".")[2]) + 1
+# def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
+#     """
+#     Calculate lr decay rate for different ViT blocks.
+#     Args:
+#         name (string): parameter name.
+#         lr_decay_rate (float): base lr decay rate.
+#         num_layers (int): number of ViT blocks.
+#     Returns:
+#         lr decay rate for the given parameter.
+#     """
+#     layer_id = num_layers + 1
+#     if name.startswith("backbone"):
+#         if ".pos_embed" in name or ".patch_embed" in name:
+#             layer_id = 0
+#         elif ".blocks." in name and ".residual." not in name:
+#             layer_id = int(name[name.find(".blocks.") :].split(".")[2]) + 1
 
-    return lr_decay_rate ** (num_layers + 1 - layer_id)
-    
+#     return lr_decay_rate ** (num_layers + 1 - layer_id)
+
 
 def build_base_fpn_dinov2():
     # net = vit_base()
