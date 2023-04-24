@@ -70,9 +70,9 @@ class MaskFormer(nn.Module):
             test_topk_per_image: int, instance segmentation parameter, keep topk instances per image
         """
         super().__init__()
-        # self.backbone = backbone
+        self.backbone = backbone
         # TODO
-        self.backbone = build_base_fpn_dinov2()
+        # self.backbone = build_base_fpn_dinov2()
         # self.backbone = SimpleFeaturePyramid()
 
 
@@ -102,8 +102,9 @@ class MaskFormer(nn.Module):
 
     @classmethod
     def from_config(cls, cfg):
-        # backbone = build_backbone(cfg)
-        backbone = build_base_fpn_dinov2()
+        backbone = build_backbone(cfg)
+        # TODO
+        # backbone = build_base_fpn_dinov2()
 
         sem_seg_head = build_sem_seg_head(cfg, backbone.output_shape())
 

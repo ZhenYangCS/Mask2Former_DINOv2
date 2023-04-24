@@ -732,120 +732,6 @@ def init_weights_vit_timm(module: nn.Module, name: str = ""):
             nn.init.zeros_(module.bias)
 
 
-def vit_base(patch_size=16, **kwargs):
-    model = DinoVisionTransformer(
-        patch_size=patch_size,
-        embed_dim=768,
-        depth=12,
-        num_heads=12,
-        mlp_ratio=4,
-        block_fn=partial(Block, attn_class=Attention),
-        **kwargs,
-    )
-    return model
-
-def vit_small(patch_size=16, **kwargs):
-    model = DinoVisionTransformer(
-        patch_size=patch_size,
-        embed_dim=384,
-        depth=12,
-        num_heads=6,
-        mlp_ratio=4,
-        block_fn=partial(Block, attn_class=Attention),
-        **kwargs,
-    )
-    return model
-
-# @BACKBONE_REGISTRY.register()
-# class D2ViT(DinoVisionTransformer, Backbone):
-#     def __init__(self, cfg, input_shape):
-
-#         pretrain_img_size = cfg.MODEL.SWIN.PRETRAIN_IMG_SIZE
-#         patch_size = cfg.MODEL.SWIN.PATCH_SIZE
-#         in_chans = 3
-#         embed_dim = cfg.MODEL.SWIN.EMBED_DIM
-#         depths = cfg.MODEL.SWIN.DEPTHS
-#         num_heads = cfg.MODEL.SWIN.NUM_HEADS
-#         window_size = cfg.MODEL.SWIN.WINDOW_SIZE
-#         mlp_ratio = cfg.MODEL.SWIN.MLP_RATIO
-#         qkv_bias = cfg.MODEL.SWIN.QKV_BIAS
-#         qk_scale = cfg.MODEL.SWIN.QK_SCALE
-#         drop_rate = cfg.MODEL.SWIN.DROP_RATE
-#         attn_drop_rate = cfg.MODEL.SWIN.ATTN_DROP_RATE
-#         drop_path_rate = cfg.MODEL.SWIN.DROP_PATH_RATE
-#         norm_layer = nn.LayerNorm
-#         ape = cfg.MODEL.SWIN.APE
-#         patch_norm = cfg.MODEL.SWIN.PATCH_NORM
-#         use_checkpoint = cfg.MODEL.SWIN.USE_CHECKPOINT
-
-#         super().__init__(
-#             pretrain_img_size,
-#             patch_size,
-#             in_chans,
-#             embed_dim,
-#             depths,
-#             num_heads,
-#             window_size,
-#             mlp_ratio,
-#             qkv_bias,
-#             qk_scale,
-#             drop_rate,
-#             attn_drop_rate,
-#             drop_path_rate,
-#             norm_layer,
-#             ape,
-#             patch_norm,
-#             use_checkpoint=use_checkpoint,
-#         )
-
-#         self._out_features = cfg.MODEL.SWIN.OUT_FEATURES
-
-#         self._out_feature_strides = {
-#             "res2": 4,
-#             "res3": 8,
-#             "res4": 16,
-#             "res5": 32,
-#         }
-#         self._out_feature_channels = {
-#             "res2": self.num_features[0],
-#             "res3": self.num_features[1],
-#             "res4": self.num_features[2],
-#             "res5": self.num_features[3],
-#         }
-
-#     def forward(self, x):
-#         """
-#         Args:
-#             x: Tensor of shape (N,C,H,W). H, W must be a multiple of ``self.size_divisibility``.
-#         Returns:
-#             dict[str->Tensor]: names and the corresponding features
-#         """
-#         assert (
-#             x.dim() == 4
-#         ), f"SwinTransformer takes an input of shape (N, C, H, W). Got {x.shape} instead!"
-#         outputs = {}
-#         y = super().forward(x)
-#         for k in y.keys():
-#             if k in self._out_features:
-#                 outputs[k] = y[k]
-#         return outputs
-
-#     def output_shape(self):
-#         return {
-#             name: ShapeSpec(
-#                 channels=self._out_feature_channels[name], stride=self._out_feature_strides[name]
-#             )
-#             for name in self._out_features
-#         }
-
-#     @property
-#     def size_divisibility(self):
-#         return 32
-
-
-        # self._out_feature_channels = {out_feature: embed_dim}
-        # self._out_feature_strides = {out_feature: patch_size}
-        # self._out_features = [out_feature]
 
 def get_norm(norm, out_channels):
     """
@@ -892,7 +778,6 @@ class LayerNorm(nn.Module):
 
 
 
-@BACKBONE_REGISTRY.register()
 class SimpleFeaturePyramid(Backbone):
     """
     This module implements SimpleFeaturePyramid in :paper:`vitdet`.
@@ -1038,25 +923,118 @@ class SimpleFeaturePyramid(Backbone):
             results.extend(self.top_block(top_block_in_feature))
         assert len(self._out_features) == len(results)
         return {f: res for f, res in zip(self._out_features, results)}
+    
 
-# def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
-#     """
-#     Calculate lr decay rate for different ViT blocks.
-#     Args:
-#         name (string): parameter name.
-#         lr_decay_rate (float): base lr decay rate.
-#         num_layers (int): number of ViT blocks.
-#     Returns:
-#         lr decay rate for the given parameter.
-#     """
-#     layer_id = num_layers + 1
-#     if name.startswith("backbone"):
-#         if ".pos_embed" in name or ".patch_embed" in name:
-#             layer_id = 0
-#         elif ".blocks." in name and ".residual." not in name:
-#             layer_id = int(name[name.find(".blocks.") :].split(".")[2]) + 1
 
-#     return lr_decay_rate ** (num_layers + 1 - layer_id)
+def vit_base(patch_size=16, **kwargs):
+    model = DinoVisionTransformer(
+        patch_size=patch_size,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4,
+        block_fn=partial(Block, attn_class=Attention),
+        **kwargs,
+    )
+    return model
+
+def vit_small(patch_size=16, **kwargs):
+    model = DinoVisionTransformer(
+        patch_size=patch_size,
+        embed_dim=384,
+        depth=12,
+        num_heads=6,
+        mlp_ratio=4,
+        block_fn=partial(Block, attn_class=Attention),
+        **kwargs,
+    )
+    return model
+
+
+@BACKBONE_REGISTRY.register()
+class DinoV2(SimpleFeaturePyramid, Backbone):
+    def __init__(self, cfg, input_shape):
+
+        patch_size = cfg.MODEL.DINOV2.PATCH_SIZE
+        out_channle = cfg.MODEL.DINOV2.OUT_CHANNLE
+        embed_dim = cfg.MODEL.DINOV2.EMBED_DIM
+        depths = cfg.MODEL.DINOV2.DEPTHS
+        num_heads = cfg.MODEL.DINOV2.NUM_HEADS
+        window_size = cfg.MODEL.DINOV2.WINDOW_SIZE
+        mlp_ratio = cfg.MODEL.DINOV2.MLP_RATIO
+        use_checkpoint = cfg.MODEL.DINOV2.USE_CHECKPOINT
+        out_channels = cfg.MODEL.DINOV2.OUT_CHANNLE
+        scale_factors = cfg.MODEL.DINOV2.SCALE_FACTORS
+        window_block_indexes = cfg.MODEL.DINOV2.WINDOW_BLOCK_INDEXES
+
+        super().__init__(
+            DinoVisionTransformer(
+                patch_size=patch_size,
+                embed_dim=embed_dim,
+                depth=depths,
+                num_heads=num_heads,
+                mlp_ratio=mlp_ratio,
+                block_fn=partial(Block, attn_class=Attention),
+                window_size=window_size,
+                window_block_indexes=window_block_indexes,
+            ),
+            out_channels=out_channle,
+            top_block=None,
+            norm="LN",
+            square_pad=0,
+            in_feature='last_feat',
+            out_channels=out_channels,
+            scale_factors=scale_factors,
+            use_checkpoint=use_checkpoint,
+        )
+
+        self._out_features = cfg.MODEL.DINOV2.OUT_FEATURES
+
+        self._out_feature_strides = {
+            "res2": 4,
+            "res3": 8,
+            "res4": 16,
+            "res5": 32,
+        }
+        self._out_feature_channels = {
+            "res2": self.num_features[0],
+            "res3": self.num_features[1],
+            "res4": self.num_features[2],
+            "res5": self.num_features[3],
+        }
+
+    def forward(self, x):
+        """
+        Args:
+            x: Tensor of shape (N,C,H,W). H, W must be a multiple of ``self.size_divisibility``.
+        Returns:
+            dict[str->Tensor]: names and the corresponding features
+        """
+        assert (
+            x.dim() == 4
+        ), f"DinoV2 takes an input of shape (N, C, H, W). Got {x.shape} instead!"
+        outputs = {}
+        y = super().forward(x)
+        for k in y.keys():
+            if k in self._out_features:
+                outputs[k] = y[k]
+        return outputs
+
+    def output_shape(self):
+        return {
+            name: ShapeSpec(
+                channels=self._out_feature_channels[name], stride=self._out_feature_strides[name]
+            )
+            for name in self._out_features
+        }
+
+    @property
+    def size_divisibility(self):
+        return 32
+
+
+
+
 
 
 def build_base_fpn_dinov2():

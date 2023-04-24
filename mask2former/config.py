@@ -89,6 +89,24 @@ def add_maskformer2_config(cfg):
     cfg.MODEL.SWIN.OUT_FEATURES = ["res2", "res3", "res4", "res5"]
     cfg.MODEL.SWIN.USE_CHECKPOINT = False
 
+    # dinov2 ViT backbone
+    cfg.MODEL.DINOV2 = CN()
+    cfg.MODEL.DINOV2.PATCH_SIZE = 16
+    cfg.MODEL.DINOV2.EMBED_DIM = 768
+    cfg.MODEL.DINOV2.DEPTHS = 12
+    cfg.MODEL.DINOV2.NUM_HEADS = 12
+    cfg.MODEL.DINOV2.WINDOW_SIZE = 16
+    cfg.MODEL.DINOV2.WINDOW_BLOCK_INDEXES = [0, 1, 3, 4, 6, 7, 9, 10,]
+    cfg.MODEL.DINOV2.MLP_RATIO = 4
+    cfg.MODEL.DINOV2.USE_CHECKPOINT = True
+    cfg.MODEL.DINOV2.OUT_CHANNLE = 256
+    cfg.MODEL.DINOV2.SCALE_FACTORS = [4.0, 2.0, 1.0, 0.5]
+
+    cfg.MODEL.DINOV2.OUT_FEATURES = ["res2", "res3", "res4", "res5"]
+    
+    
+
+
     # NOTE: maskformer2 extra configs
     # transformer module
     cfg.MODEL.MASK_FORMER.TRANSFORMER_DECODER_NAME = "MultiScaleMaskedTransformerDecoder"

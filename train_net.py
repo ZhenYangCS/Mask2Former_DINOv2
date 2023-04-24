@@ -1,4 +1,8 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
+import warnings
+warnings.filterwarnings('ignore')
+
 """
 MaskFormer Training Script.
 
