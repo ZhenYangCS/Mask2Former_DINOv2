@@ -213,6 +213,7 @@ class Trainer(DefaultTrainer):
         defaults["lr"] = cfg.SOLVER.BASE_LR
         defaults["weight_decay"] = cfg.SOLVER.WEIGHT_DECAY
 
+
         norm_module_types = (
             torch.nn.BatchNorm1d,
             torch.nn.BatchNorm2d,
@@ -240,9 +241,11 @@ class Trainer(DefaultTrainer):
 
                 hyperparams = copy.copy(defaults)
                 if "backbone" in module_name:
-                    # hyperparams["lr"] = hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER
                     #TODO 如果更换模型，则需要修改num_layers的值以及lr_decay_rate的值
-                    hyperparams['lr'] = hyperparams['lr'] * get_vit_lr_decay_rate(module_name, lr_decay_rate=0.8, num_layers=12)
+                    if cfg.USE_LAYER_DECAY:
+                        hyperparams['lr'] = hyperparams['lr'] * get_vit_lr_decay_rate(module_name, lr_decay_rate=cfg.LR_DECAY_RATE, num_layers=cfg.MODEL.DINOV2.DEPTHS)
+                    else:
+                        hyperparams["lr"] = hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER
                 if (
                     "relative_position_bias_table" in module_param_name
                     or "absolute_pos_embed" in module_param_name
@@ -253,8 +256,6 @@ class Trainer(DefaultTrainer):
                 if isinstance(module, torch.nn.Embedding):
                     hyperparams["weight_decay"] = weight_decay_embed
                 params.append({"params": [value], **hyperparams})
-        # optimizer.params.lr_factor_func = partial(get_vit_lr_decay_rate, lr_decay_rate=0.8, num_layers=24)
-        # params['lr_factor_func'] = partial(get_vit_lr_decay_rate, lr_decay_rate=0.8, num_layers=12)
 
 
         def maybe_add_full_model_gradient_clipping(optim):

@@ -103,7 +103,8 @@ def add_maskformer2_config(cfg):
     cfg.MODEL.DINOV2.SCALE_FACTORS = [4.0, 2.0, 1.0, 0.5]
 
     cfg.MODEL.DINOV2.OUT_FEATURES = ["res2", "res3", "res4", "res5"]
-    
+    cfg.USE_LAYER_DECAY = False
+    cfg.LR_DECAY_RATE = 0.8
     
 
 

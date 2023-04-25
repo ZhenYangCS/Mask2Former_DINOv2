@@ -467,9 +467,9 @@ class DinoVisionTransformer(Backbone):
         ffn_layer="mlp",
         block_chunks=1,
         out_feature="last_feat",
-
         window_size=16,
         window_block_indexes=[0, 1, 3, 4, 6, 7, 9, 10,],
+        use_checkpoint=True,
     ):
         """
         Args:
@@ -501,12 +501,13 @@ class DinoVisionTransformer(Backbone):
         self.n_blocks = depth
         self.num_heads = num_heads
         self.patch_size = patch_size
+        
+        self.use_checkpoint = use_checkpoint
 
         self.patch_embed = embed_layer(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         num_patches = self.patch_embed.num_patches
 
         # self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim))
 
         if drop_path_uniform is True:
@@ -646,9 +647,12 @@ class DinoVisionTransformer(Backbone):
         x = self.prepare_tokens_with_masks(x, masks)
         
 
+        
         for blk in self.blocks:
-            x = cp.checkpoint(blk, x, H, W)
-            # x = blk(x, H, W)
+            if self.use_checkpoint:
+                x = cp.checkpoint(blk, x, H, W)
+            else:
+                x = blk(x, H, W)
 
         x_norm = self.norm(x)
 
@@ -962,13 +966,12 @@ class DinoV2(SimpleFeaturePyramid, Backbone):
         num_heads = cfg.MODEL.DINOV2.NUM_HEADS
         window_size = cfg.MODEL.DINOV2.WINDOW_SIZE
         mlp_ratio = cfg.MODEL.DINOV2.MLP_RATIO
-        use_checkpoint = cfg.MODEL.DINOV2.USE_CHECKPOINT
-        out_channels = cfg.MODEL.DINOV2.OUT_CHANNLE
         scale_factors = cfg.MODEL.DINOV2.SCALE_FACTORS
         window_block_indexes = cfg.MODEL.DINOV2.WINDOW_BLOCK_INDEXES
-
+        use_checkpoint = cfg.MODEL.DINOV2.USE_CHECKPOINT
+        
         super().__init__(
-            DinoVisionTransformer(
+            ViT = DinoVisionTransformer(
                 patch_size=patch_size,
                 embed_dim=embed_dim,
                 depth=depths,
@@ -977,31 +980,30 @@ class DinoV2(SimpleFeaturePyramid, Backbone):
                 block_fn=partial(Block, attn_class=Attention),
                 window_size=window_size,
                 window_block_indexes=window_block_indexes,
+                use_checkpoint=use_checkpoint,
             ),
             out_channels=out_channle,
             top_block=None,
             norm="LN",
             square_pad=0,
             in_feature='last_feat',
-            out_channels=out_channels,
             scale_factors=scale_factors,
-            use_checkpoint=use_checkpoint,
         )
 
         self._out_features = cfg.MODEL.DINOV2.OUT_FEATURES
 
-        self._out_feature_strides = {
-            "res2": 4,
-            "res3": 8,
-            "res4": 16,
-            "res5": 32,
-        }
-        self._out_feature_channels = {
-            "res2": self.num_features[0],
-            "res3": self.num_features[1],
-            "res4": self.num_features[2],
-            "res5": self.num_features[3],
-        }
+        # self._out_feature_strides = {
+        #     "res2": 4,
+        #     "res3": 8,
+        #     "res4": 16,
+        #     "res5": 32,
+        # }
+        # self._out_feature_channels = {
+        #     "res2": 256,
+        #     "res3": 256,
+        #     "res4": 256,
+        #     "res5": 256,
+        # }
 
     def forward(self, x):
         """
