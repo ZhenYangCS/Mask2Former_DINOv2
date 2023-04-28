@@ -75,7 +75,9 @@ def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
     """
     layer_id = num_layers + 1
     if name.startswith("backbone"):
-        if ".pos_embed" in name or ".patch_embed" in name:
+        if ".pos_embed" in name:
+            return 0
+        elif ".patch_embed" in name:
             layer_id = 0
         elif ".blocks." in name and ".residual." not in name:
             # TODO，因为名字中有block.0.0，因此要选择第三个
