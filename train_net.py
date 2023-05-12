@@ -1,4 +1,18 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# import haienv
+# haienv.set_env('mask2former') 
+# from hfai.utils.detr2 import register_ffrecord_handler
+# register_ffrecord_handler(
+#     ffr_file="datasets/coco/coco.ffr",
+#     ffr_prefix="coco",
+# )
+# NOTE: 必须在 import detectron2 之前调用 register_ffrecord_handler
+# import detectron2
+
+# mkdir datasets
+# ln -s /public_dataset/1/ffdataset/mm_coco datasets/coco
+
+
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -344,7 +358,7 @@ def main(args):
         return res
 
     trainer = Trainer(cfg)
-    trainer.resume_or_load(resume=args.resume)
+    # trainer.resume_or_load(resume=args.resume)
     return trainer.train()
 
 
