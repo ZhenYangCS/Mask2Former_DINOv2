@@ -12,9 +12,11 @@ MODEL:
     OUT_CHANNLE: 256
     SCALE_FACTORS: [4.0, 2.0, 1.0, 0.5]
     OUT_FEATURES: ["res2", "res3", "res4", "res5"]
-  WEIGHTS: "/home/yangzhen/checkpoints/segmentation/new_dinov2_vitb14_pretrain.pth"
+  # WEIGHTS: "/home/yangzhen/checkpoints/segmentation/new_dinov2_vitb14_pretrain.pth"
+  WEIGHTS: "/ceph-jd/pub/jupyter/wangwen/notebooks/zhenyang/checkpoints/new_dinov2_vitb14_pretrain.pth"
   PIXEL_MEAN: [123.675, 116.280, 103.530]
   PIXEL_STD: [58.395, 57.120, 57.375]
 USE_LAYER_DECAY: True
 LR_DECAY_RATE: 0.65
-OUTPUT_DIR: "/home/yangzhen/checkpoints/segmentation/output/Dinov2_Base"
+# OUTPUT_DIR: "/home/yangzhen/checkpoints/segmentation/output/Dinov2_Base"
+OUTPUT_DIR: "/ceph-jd/pub/jupyter/wangwen/notebooks/zhenyang/checkpoints/segmentation/output/Dinov2_Base"
